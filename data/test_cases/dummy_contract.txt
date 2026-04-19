@@ -1,0 +1,17 @@
+TARAFLAR
+Bir tarafta A Şirketi, diğer tarafta B Şirketi arasında işbu sözleşme akdedilmiştir.
+
+SÖZLEŞME KONUSU
+Bu sözleşme, yazılım geliştirme hizmetlerinin sağlanmasını kapsar.
+
+1. ÖDEME KOŞULLARI
+Hizmet bedeli fatura tarihinden itibaren 30 gün içinde ödenecektir.
+
+2. CEZAİ ŞARTLAR
+Ödemenin belirtilen süre içinde yapılmaması durumunda, aylık %5 oranında gecikme cezası uygulanacaktır.
+
+3. GİZLİLİK
+Taraflar birbirlerine ait her türlü ticari ve teknik bilgiyi sözleşme süresince ve bittikten sonra 3 yıl süreyle gizli tutmayı kabul eder.
+
+4. FESİH VE SONA ERME
+Herhangi bir taraf, diğer tarafa 15 gün önceden yazılı bildirimde bulunmak suretiyle sözleşmeyi feshedebilir. Taraflar, olası uyuşmazlıkları makul bir sürede çözmek için iyi niyet çerçevesinde gayret gösterecektir.

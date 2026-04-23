@@ -1,0 +1,33 @@
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Testing
+.pytest_cache/
+coverage.xml
+htmlcov/
+.tox/
+
+# Local tests
+*test_contract*.json
+*test_response*.json
+tr_detailed_response.json
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# MacOS
+.DS_Store

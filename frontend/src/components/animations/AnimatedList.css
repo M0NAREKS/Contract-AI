@@ -68,3 +68,23 @@
   pointer-events: none;
   transition: opacity 0.3s ease;
 }
+
+[data-theme="light"] .scroll-list::-webkit-scrollbar-track {
+  background: rgba(34, 40, 49, 0.08);
+}
+
+[data-theme="light"] .scroll-list::-webkit-scrollbar-thumb {
+  background: rgba(34, 40, 49, 0.28);
+}
+
+[data-theme="light"] .item-text {
+  color: var(--text);
+}
+
+[data-theme="light"] .top-gradient {
+  background: linear-gradient(to bottom, #eeeeee, transparent);
+}
+
+[data-theme="light"] .bottom-gradient {
+  background: linear-gradient(to top, #eeeeee, transparent);
+}

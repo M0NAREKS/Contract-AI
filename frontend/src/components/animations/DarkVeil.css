@@ -13,15 +13,15 @@
 
 .darkveil-base {
   background:
-    radial-gradient(80% 70% at 20% 10%, rgba(62, 120, 138, 0.28), transparent 60%),
-    radial-gradient(70% 65% at 85% 20%, rgba(30, 90, 105, 0.24), transparent 62%),
-    radial-gradient(120% 100% at 50% 120%, rgba(8, 15, 30, 0.95), rgba(7, 14, 24, 0.98));
+    radial-gradient(80% 70% at 20% 10%, var(--dv-glow-1), transparent 60%),
+    radial-gradient(70% 65% at 85% 20%, var(--dv-glow-2), transparent 62%),
+    radial-gradient(120% 100% at 50% 120%, var(--dv-deep-a), var(--dv-deep-b));
 }
 
 .darkveil-warp {
   background:
-    radial-gradient(circle at 30% 30%, rgba(66, 165, 160, 0.1), transparent 42%),
-    radial-gradient(circle at 70% 60%, rgba(61, 117, 196, 0.08), transparent 48%);
+    radial-gradient(circle at 30% 30%, var(--dv-glow-3), transparent 42%),
+    radial-gradient(circle at 70% 60%, var(--dv-glow-4), transparent 48%);
   transform: translate3d(0, 0, 0);
   animation: darkveil-drift var(--dv-speed, 4s) ease-in-out infinite alternate;
 }
@@ -38,6 +38,17 @@
   mix-blend-mode: soft-light;
 }
 
+[data-theme="light"] .darkveil-scanlines {
+  mix-blend-mode: multiply;
+  background-image: repeating-linear-gradient(
+    to bottom,
+    rgba(34, 40, 49, 0.05) 0,
+    rgba(34, 40, 49, 0.05) 1px,
+    transparent 1px,
+    transparent var(--dv-scan-freq, 0.55rem)
+  );
+}
+
 .darkveil-noise {
   opacity: calc(var(--dv-noise, 0) * 1.5);
   background-image:
@@ -48,6 +59,13 @@
   mix-blend-mode: overlay;
 }
 
+[data-theme="light"] .darkveil-noise {
+  opacity: calc(var(--dv-noise, 0) * 0.9);
+  background-image:
+    radial-gradient(rgba(34, 40, 49, 0.10) 0.5px, transparent 0.5px),
+    radial-gradient(rgba(34, 40, 49, 0.06) 0.5px, transparent 0.5px);
+  mix-blend-mode: multiply;
+}
 @keyframes darkveil-drift {
   from {
     transform: translateX(calc(var(--dv-warp, 0px) * -0.5))

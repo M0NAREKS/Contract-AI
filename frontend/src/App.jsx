@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
-import { analyzeContract, normalizeAnalysisResponse, uploadContract } from "./Services";
+import { useEffect, useState } from "react";
+import { analyzeContract, uploadContract } from "./Services";
 import ClauseList from "./components/Detail/ClauseList";
+import RiskSummary from "./components/Detail/RiskSummary";
 import { CountUp, DarkVeil, PillNav, SplitText } from "./components/animations";
-import { MOCK_ANALYSIS_RESPONSE } from "./mockData";
 
 const HEADER_NAV_ITEMS = [
   {
@@ -42,7 +42,7 @@ function getRiskLevel(score) {
   return "Dusuk";
 }
 
-function HeaderNav() {
+function HeaderNav({ theme, onToggleTheme }) {
   return (
     <header className="topHeader">
       <div className="brand">ContratAi</div>
@@ -53,11 +53,37 @@ function HeaderNav() {
           initialLoadAnimation={true}
           showLogo={false}
           baseColor="transparent"
-          pillColor="#e2e8f0"
+          pillColor={theme === "light" ? "#EEEEEE" : "#e2e8f0"}
           hoveredPillTextColor="#f8fafc"
           pillTextColor="#0f172a"
           hoverColor="#2f646a"
         />
+        <button
+          type="button"
+          className="themeToggleButton"
+          onClick={onToggleTheme}
+          aria-label={theme === "light" ? "Koyu temaya gec" : "Acik temaya gec"}
+          title={theme === "light" ? "Koyu tema" : "Acik tema"}
+        >
+          {theme === "light" ? (
+            // Moon icon (minimal crescent)
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round">
+              <path
+                d="M21 12.8A8.8 8.8 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z"
+                strokeLinejoin="round"
+              />
+            </svg>
+          ) : (
+            // Sun icon (minimal + crisp rays)
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round">
+              <circle cx="12" cy="12" r="4" />
+              <path d="M12 2.25v2.5M12 19.25v2.5" />
+              <path d="M4.25 4.25l1.75 1.75M18 18l1.75 1.75" />
+              <path d="M2.25 12h2.5M19.25 12h2.5" />
+              <path d="M4.25 19.75l1.75-1.75M18 6l1.75-1.75" />
+            </svg>
+          )}
+        </button>
       </nav>
     </header>
   );
@@ -95,51 +121,32 @@ function FooterNav() {
   );
 }
 
-function ExecutiveSummary({ summary, totalClauses }) {
-  const cards = [
-    { title: "Toplam Madde", value: totalClauses, suffix: "" },
-    { title: "Toplam Ihlal", value: summary.violation_count, suffix: "" },
-    { title: "Toplam Uyari", value: summary.warning_count, suffix: "" },
-    {
-      title: "Genel Risk Skoru",
-      value: Math.round(summary.average_ml_risk_score * 100),
-      suffix: `% (${getRiskLevel(summary.average_ml_risk_score)})`,
-    },
+function ContractMetaPanel({ responseData, summary, totalClauses }) {
+  if (!responseData) return null;
+
+  const dateText = responseData.date
+    ? new Date(responseData.date).toLocaleString("tr-TR", { hour12: false })
+    : "-";
+
+  const riskScore = Number(summary?.average_ml_risk_score ?? 0);
+  const items = [
+    { label: "Toplam Madde", value: totalClauses ?? 0 },
+    { label: "Toplam Ihlal", value: summary?.violation_count ?? 0 },
+    { label: "Toplam Uyari", value: summary?.warning_count ?? 0 },
+    { label: "Yuksek Riskli Madde", value: summary?.high_risk_clause_count ?? 0 },
+    { label: "Genel Risk Skoru", value: `${Math.round(riskScore * 100)}% (${getRiskLevel(riskScore)})` },
+    { label: "Analiz Tarihi", value: dateText },
+    { label: "Metin Uzunlugu", value: responseData.text_length ?? 0 },
   ];
 
   return (
-    <section className="summaryPanel">
-      {cards.map((card) => (
-        <article key={card.title} className="summaryCard">
-          <h4>{card.title}</h4>
-          <p>
-            <CountUp from={0} to={card.value} duration={1.2} className="countUpText" />
-            {card.suffix}
-          </p>
-        </article>
-      ))}
-    </section>
-  );
-}
-
-function TopRisksBlock({ topRisks }) {
-  if (!topRisks.length) return null;
-  return (
-    <section className="riskBlock">
-      <div className="riskHeader">
-        <h3>En Kritik 5 Risk</h3>
-        <span className="badge">Risk Analizi</span>
-      </div>
-      <div className="riskList">
-        {topRisks.map((risk, index) => (
-          <article key={`${risk.title}-${index}`} className="riskItem">
-            <div className="riskItemTop">
-              <strong>{risk.title}</strong>
-              <span className="riskScore">Skor: {Number(risk.risk_score ?? 0).toFixed(2)}</span>
-            </div>
-            <p className="riskReason">
-              Madde {risk.clause_no ?? "-"} - {risk.reason}
-            </p>
+    <section className="panel contractMetaPanel softReveal metaReveal">
+      <h2>Analiz Metaverisi</h2>
+      <div className="metaGrid">
+        {items.map((item) => (
+          <article key={item.label} className="metaCard">
+            <h4>{item.label}</h4>
+            <p>{item.value}</p>
           </article>
         ))}
       </div>
@@ -148,14 +155,42 @@ function TopRisksBlock({ topRisks }) {
 }
 
 function App() {
+  const [isDragging, setIsDragging] = useState(false);
   const [selectedFile, setSelectedFile] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [loadingStageIndex, setLoadingStageIndex] = useState(0);
   const [errorMessage, setErrorMessage] = useState("");
   const [responseData, setResponseData] = useState(null);
+  const [scrollToClauseNo, setScrollToClauseNo] = useState(null);
+  const [theme, setTheme] = useState(() => {
+    const stored = window.localStorage.getItem("theme");
+    if (stored === "light" || stored === "dark") return stored;
+    return "dark";
+  });
   const [currentPage, setCurrentPage] = useState(() =>
     window.location.pathname === "/maddeler" ? "clauses" : "home"
   );
+
+  const darkVeilPreset =
+    theme === "light"
+      ? {
+          hueShift: 0,
+          noiseIntensity: 0.025,
+          scanlineIntensity: 0.03,
+          scanlineFrequency: 1.05,
+          speed: 0.36,
+          warpAmount: 0.065,
+          resolutionScale: 1,
+        }
+      : {
+          hueShift: -20,
+          noiseIntensity: 0.04,
+          scanlineIntensity: 0.05,
+          scanlineFrequency: 1.2,
+          speed: 0.4,
+          warpAmount: 0.08,
+          resolutionScale: 1,
+        };
 
   useEffect(() => {
     const onPopState = () => {
@@ -164,6 +199,17 @@ function App() {
     window.addEventListener("popstate", onPopState);
     return () => window.removeEventListener("popstate", onPopState);
   }, []);
+
+  useEffect(() => {
+    document.documentElement.setAttribute("data-theme", theme);
+    window.localStorage.setItem("theme", theme);
+  }, [theme]);
+
+  useEffect(() => {
+    if (currentPage !== "clauses") return;
+    // Ensure we start at top when entering detail page.
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+  }, [currentPage]);
 
   useEffect(() => {
     if (!isLoading) return undefined;
@@ -180,6 +226,27 @@ function App() {
     const file = event.target.files?.[0] || null;
     setSelectedFile(file);
     setErrorMessage("");
+  };
+  const handleDragOver = (e) => {
+    e.preventDefault(); // Tarayıcının varsayılan davranışını (dosyayı açmasını) engeller
+    setIsDragging(true); // Kutuya yeşil bir "hover" efekti vermek için state'i true yapar
+  };
+
+  const handleDragLeave = (e) => {
+    e.preventDefault();
+    setIsDragging(false); // Sürükleme kutudan çıkınca state'i false yapar
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    setIsDragging(false);
+    
+    // Bırakılan dosyayı alır ve state'e kaydeder
+    const file = e.dataTransfer.files?.[0];
+    if (file) {
+      setSelectedFile(file);
+      setErrorMessage("");
+    }
   };
 
   const handleSubmit = async (event) => {
@@ -204,27 +271,19 @@ function App() {
     }
   };
 
-  const handleLoadMockData = () => {
-    setErrorMessage("");
-    setSelectedFile(null);
-    setResponseData(normalizeAnalysisResponse(MOCK_ANALYSIS_RESPONSE));
-  };
-
   const clauses = Array.isArray(responseData?.clauses) ? responseData.clauses : [];
+  const totalClauses = Number(responseData?.clause_count ?? clauses.length ?? 0);
   const summary = responseData?.summary || {
-    total_clauses: 0,
     violation_count: 0,
     warning_count: 0,
+    high_risk_clause_count: 0,
     average_ml_risk_score: 0,
   };
-  const topRisks = useMemo(
-    () => (Array.isArray(responseData?.top_risks) ? responseData.top_risks.slice(0, 5) : []),
-    [responseData]
-  );
 
   const navigateToClausesPage = () => {
     setCurrentPage("clauses");
     window.history.pushState({ page: "clauses" }, "", "/maddeler");
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
   };
 
   const navigateToHomePage = () => {
@@ -237,13 +296,13 @@ function App() {
       <div className="appRoot">
         <div className="darkVeilLayer" aria-hidden="true">
           <DarkVeil
-            hueShift={-20}
-            noiseIntensity={0.04}
-            scanlineIntensity={0.05}
-            scanlineFrequency={1.2}
-            speed={0.4}
-            warpAmount={0.08}
-            resolutionScale={1}
+            hueShift={darkVeilPreset.hueShift}
+            noiseIntensity={darkVeilPreset.noiseIntensity}
+            scanlineIntensity={darkVeilPreset.scanlineIntensity}
+            scanlineFrequency={darkVeilPreset.scanlineFrequency}
+            speed={darkVeilPreset.speed}
+            warpAmount={darkVeilPreset.warpAmount}
+            resolutionScale={darkVeilPreset.resolutionScale}
           />
         </div>
 
@@ -260,11 +319,13 @@ function App() {
             </button>
           </section>
 
-          {responseData && <ExecutiveSummary summary={summary} totalClauses={clauses.length} />}
+          {responseData && (
+            <ContractMetaPanel responseData={responseData} summary={summary} totalClauses={totalClauses} />
+          )}
 
           <section className="panel resultPanel">
             {clauses.length ? (
-              <ClauseList clauses={clauses} />
+              <ClauseList clauses={clauses} scrollToClauseNo={scrollToClauseNo} />
             ) : (
               <div className="emptyResult">
                 <p>Henuz madde bulunmuyor. Ana sayfadan sozlesme yukleyebilirsin.</p>
@@ -272,7 +333,14 @@ function App() {
             )}
           </section>
 
-          {responseData && <TopRisksBlock topRisks={topRisks} />}
+          {responseData && (
+            <RiskSummary
+              clauses={clauses}
+              onSelectClause={(clauseNo) => {
+                setScrollToClauseNo(clauseNo);
+              }}
+            />
+          )}
         </main>
       </div>
     );
@@ -282,18 +350,21 @@ function App() {
     <div className="appRoot">
       <div className="darkVeilLayer" aria-hidden="true">
         <DarkVeil
-          hueShift={-20}
-          noiseIntensity={0.04}
-          scanlineIntensity={0.05}
-          scanlineFrequency={1.2}
-          speed={0.4}
-          warpAmount={0.08}
-          resolutionScale={1}
+          hueShift={darkVeilPreset.hueShift}
+          noiseIntensity={darkVeilPreset.noiseIntensity}
+          scanlineIntensity={darkVeilPreset.scanlineIntensity}
+          scanlineFrequency={darkVeilPreset.scanlineFrequency}
+          speed={darkVeilPreset.speed}
+          warpAmount={darkVeilPreset.warpAmount}
+          resolutionScale={darkVeilPreset.resolutionScale}
         />
       </div>
 
       <main key="home-page" className="page clausesPageTransition">
-        <HeaderNav />
+        <HeaderNav
+          theme={theme}
+          onToggleTheme={() => setTheme((prev) => (prev === "light" ? "dark" : "light"))}
+        />
 
         <section className="landingShowcase">
           <div className="showcaseTitle" role="heading" aria-level={1}>
@@ -308,7 +379,7 @@ function App() {
               to={{ opacity: 1, y: 0 }}
               threshold={0.2}
               rootMargin="-80px"
-              textAlign="left"
+              textAlign="center"
               className="showcaseTitleBlur"
             />
             <SplitText
@@ -322,13 +393,11 @@ function App() {
               to={{ opacity: 1, y: 0 }}
               threshold={0.2}
               rootMargin="-80px"
-              textAlign="left"
+              textAlign="center"
               className="showcaseTitleBlur showcaseTitleBlurAccent"
             />
           </div>
         </section>
-
-        {responseData && <ExecutiveSummary summary={summary} totalClauses={clauses.length} />}
 
         <div className="grid">
           <section className="panel">
@@ -336,17 +405,47 @@ function App() {
             <p className="panelText">Desteklenen formatlar: .pdf, .doc, .docx, .txt</p>
 
             <form onSubmit={handleSubmit} className="uploadForm">
-              <label className="fileInputWrap">
-                <input type="file" accept=".pdf,.doc,.docx,.txt" onChange={handleFileChange} />
+            <label 
+                className={`fileInputWrap ${isDragging ? "dragging" : ""}`}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+              >
+                <div className="uploadPlaceholder">
+                  {/* Premium Yükleme İkonu (SVG) */}
+                  <svg 
+                    viewBox="0 0 24 24" 
+                    width="42" 
+                    height="42" 
+                    fill="none" 
+                    stroke="currentColor" 
+                    strokeWidth="1.5" 
+                    strokeLinecap="round" 
+                    strokeLinejoin="round" 
+                    className="docSvg"
+                  >
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                    <polyline points="14 2 14 8 20 8"></polyline>
+                    <path d="M12 18v-6"></path>
+                    <path d="M9 15l3-3 3 3"></path>
+                  </svg>
+                  {/* Buton yerine sadece şık bir metin */}
+                  <span>Dosya seçmek için tıklayın</span>
+                </div>
+                
+                {/* SİHİRLİ DOKUNUŞ: Asıl dosya seçiciyi tamamen görünmez yapıyoruz */}
+                <input 
+                  type="file" 
+                  accept=".pdf,.doc,.docx,.txt" 
+                  onChange={handleFileChange} 
+                  style={{ display: "none" }} 
+                />
               </label>
 
               <button type="submit" disabled={isLoading}>
                 {isLoading ? "Analiz sürüyor..." : "Sözleşmeyi Yükle ve Analiz Et"}
               </button>
 
-              <button type="button" className="secondaryButton" onClick={handleLoadMockData}>
-                Mock Veri Getir
-              </button>
             </form>
 
             {selectedFile && (
@@ -388,18 +487,67 @@ function App() {
               <p className="panelText">Yükleme sonrası backend cevabı burada gösterilecek.</p>
             )}
 
+            {/* YENİ EKLENEN KISIM: Eski metinler yerine 3'lü dinamik grid yapısı */}
             {responseData && (
               <div className="resultArea">
-                <div className="resultHeader">
-                  <strong>Madde Analizi</strong>
-                  <span className="keysBadge">{clauses.length} madde</span>
+               <div className="resultSummaryGrid">
+                  {/* 1. TOPLAM MADDE KARTI */}
+                  <article className="resultStatCard safeCard">
+                    <div className="cardIconWrap">
+                      {/* Döküman İkonu */}
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                        <polyline points="14 2 14 8 20 8"></polyline>
+                        <line x1="16" y1="13" x2="8" y2="13"></line>
+                        <line x1="16" y1="17" x2="8" y2="17"></line>
+                        <polyline points="10 9 9 9 8 9"></polyline>
+                      </svg>
+                    </div>
+                    <div className="cardContent">
+                      <h4>Toplam Madde</h4>
+                      <p>{totalClauses}</p>
+                    </div>
+                  </article>
+
+                  {/* 2. TOPLAM İHLAL KARTI (Sıfırdan büyükse kırmızı olur) */}
+                  <article className={`resultStatCard ${summary.violation_count > 0 ? "dangerCard" : "safeCard"}`}>
+                    <div className="cardIconWrap">
+                      {/* Çarpı/İhlal İkonu */}
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <line x1="15" y1="9" x2="9" y2="15"></line>
+                        <line x1="9" y1="9" x2="15" y2="15"></line>
+                      </svg>
+                    </div>
+                    <div className="cardContent">
+                      <h4>Toplam İhlal</h4>
+                      <p className={summary.violation_count > 0 ? "textViolation" : ""}>
+                        {summary.violation_count}
+                      </p>
+                    </div>
+                  </article>
+
+                  {/* 3. YÜKSEK RİSK KARTI (Sıfırdan büyükse turuncu olur) */}
+                  <article className={`resultStatCard ${summary.high_risk_clause_count > 0 ? "warningCard" : "safeCard"}`}>
+                    <div className="cardIconWrap">
+                      {/* Uyarı/Risk İkonu */}
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+                        <line x1="12" y1="9" x2="12" y2="13"></line>
+                        <line x1="12" y1="17" x2="12.01" y2="17"></line>
+                      </svg>
+                    </div>
+                    <div className="cardContent">
+                      <h4>Yüksek Risk</h4>
+                      <p className={summary.high_risk_clause_count > 0 ? "textHighRisk" : ""}>
+                        {summary.high_risk_clause_count}
+                      </p>
+                    </div>
+                  </article>
                 </div>
-                <p className="panelText">
-                  Ozet cikarildi, maddeler ayrildi ve kritik riskler belirlendi. Tum detaylar icin
-                  madde ekranina gec.
-                </p>
               </div>
             )}
+            
             {responseData && (
               <div className="resultPanelFooter">
                 <button type="button" className="openClausesButton" onClick={navigateToClausesPage}>
@@ -413,7 +561,10 @@ function App() {
         <section className="impactPanel">
           <article className="impactItem">
             <div className="impactIcon" aria-hidden="true">
-              ⌛
+              <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                <circle cx="12" cy="12" r="8" />
+                <path d="M12 7v5l3 2" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
             </div>
             <h3>
               <CountUp from={0} to={100} duration={1.8} className="countUpText" />%
@@ -423,7 +574,13 @@ function App() {
 
           <article className="impactItem">
             <div className="impactIcon" aria-hidden="true">
-              ⚡
+              <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                <path
+                  d="M13 2 5 13h5l-1 9 8-11h-5l1-9z"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
             </div>
             <h3>
               <CountUp from={0} to={3} duration={1.8} className="countUpText" />x
@@ -433,7 +590,14 @@ function App() {
 
           <article className="impactItem">
             <div className="impactIcon" aria-hidden="true">
-              ●
+              <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                <path
+                  d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6z"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+                <circle cx="12" cy="12" r="2.5" />
+              </svg>
             </div>
             <h3>
               <CountUp from={0} to={90} duration={1.8} className="countUpText" />%
@@ -443,7 +607,12 @@ function App() {
 
           <article className="impactItem">
             <div className="impactIcon" aria-hidden="true">
-              ⚙
+              <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                <path d="M4 6h16M4 12h16M4 18h16" strokeLinecap="round" />
+                <circle cx="9" cy="6" r="2" fill="currentColor" stroke="none" />
+                <circle cx="15" cy="12" r="2" fill="currentColor" stroke="none" />
+                <circle cx="11" cy="18" r="2" fill="currentColor" stroke="none" />
+              </svg>
             </div>
             <h3>
               <CountUp from={0} to={80} duration={1.8} className="countUpText" />%
@@ -459,17 +628,36 @@ function App() {
 
           <div className="flowGrid top">
             <div className="flowStep">
-              <div className="flowStepIcon">📄</div>
+              <div className="flowStepIcon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.8">
+                  <path d="M8 3h6l4 4v14H8z" strokeLinecap="round" strokeLinejoin="round" />
+                  <path d="M14 3v4h4" strokeLinecap="round" strokeLinejoin="round" />
+                  <path d="M10 12h6M10 16h6" strokeLinecap="round" />
+                </svg>
+              </div>
               <span>Arastir</span>
             </div>
             <div className="flowConnector">→</div>
             <div className="flowStep">
-              <div className="flowStepIcon">🧾</div>
+              <div className="flowStepIcon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.8">
+                  <path d="M7 3h10v18l-2-1.5L13 21l-2-1.5L9 21l-2-1.5L5 21V5a2 2 0 0 1 2-2z" />
+                  <path d="M9 8h6M9 12h6M9 16h4" strokeLinecap="round" />
+                </svg>
+              </div>
               <span>Incele</span>
             </div>
             <div className="flowConnector">→</div>
             <div className="flowStep">
-              <div className="flowStepIcon">👍</div>
+              <div className="flowStepIcon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.8">
+                  <path
+                    d="M10 21H6a2 2 0 0 1-2-2v-6a2 2 0 0 1 2-2h4m0 10V11m0 10 4.5-4.5a2 2 0 0 0 .5-1.3V6.5A2.5 2.5 0 0 0 12.5 4L10 11m0 0h7a2 2 0 0 1 2 2l-1 6a2 2 0 0 1-2 2h-6"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              </div>
               <span>Onayla</span>
             </div>
           </div>
@@ -478,17 +666,36 @@ function App() {
 
           <div className="flowGrid bottom">
             <div className="flowStep">
-              <div className="flowStepIcon">⚙</div>
+              <div className="flowStepIcon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.8">
+                  <circle cx="12" cy="12" r="3" />
+                  <path
+                    d="M19.4 15a1 1 0 0 0 .2 1.1l.1.1a1 1 0 0 1 0 1.4l-1 1a1 1 0 0 1-1.4 0l-.1-.1a1 1 0 0 0-1.1-.2 1 1 0 0 0-.6.9V20a1 1 0 0 1-1 1h-1.5a1 1 0 0 1-1-1v-.2a1 1 0 0 0-.6-.9 1 1 0 0 0-1.1.2l-.1.1a1 1 0 0 1-1.4 0l-1-1a1 1 0 0 1 0-1.4l.1-.1a1 1 0 0 0 .2-1.1 1 1 0 0 0-.9-.6H4a1 1 0 0 1-1-1v-1.5a1 1 0 0 1 1-1h.2a1 1 0 0 0 .9-.6 1 1 0 0 0-.2-1.1l-.1-.1a1 1 0 0 1 0-1.4l1-1a1 1 0 0 1 1.4 0l.1.1a1 1 0 0 0 1.1.2 1 1 0 0 0 .6-.9V4a1 1 0 0 1 1-1h1.5a1 1 0 0 1 1 1v.2a1 1 0 0 0 .6.9 1 1 0 0 0 1.1-.2l.1-.1a1 1 0 0 1 1.4 0l1 1a1 1 0 0 1 0 1.4l-.1.1a1 1 0 0 0-.2 1.1 1 1 0 0 0 .9.6H20a1 1 0 0 1 1 1v1.5a1 1 0 0 1-1 1h-.2a1 1 0 0 0-.9.6z"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              </div>
               <span>Optimize</span>
             </div>
             <div className="flowConnector">←</div>
             <div className="flowStep">
-              <div className="flowStepIcon">🔍</div>
+              <div className="flowStepIcon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.8">
+                  <circle cx="11" cy="11" r="6" />
+                  <path d="m20 20-4.2-4.2" strokeLinecap="round" />
+                </svg>
+              </div>
               <span>Analiz Et</span>
             </div>
             <div className="flowConnector">←</div>
             <div className="flowStep">
-              <div className="flowStepIcon">✅</div>
+              <div className="flowStepIcon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.8">
+                  <circle cx="12" cy="12" r="9" />
+                  <path d="m8 12 2.5 2.5L16 9" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </div>
               <span>Tamamla</span>
             </div>
           </div>

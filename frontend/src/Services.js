@@ -1,4 +1,4 @@
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || "http://localhost:8000").replace(/\/+$/, "");
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || "/api").replace(/\/+$/, "");
 
 export const API_ENDPOINTS = {
   analyzeContract: "/analyze-contract",
@@ -35,6 +35,11 @@ function toNumber(value) {
   return n;
 }
 
+function toOptionalNumber(value, fallback = null) {
+  if (value === null || value === undefined) return fallback;
+  return toNumber(value);
+}
+
 function toRiskRatio(value) {
   const n = toNumber(value);
   if (n < 0 || n > 1) {
@@ -57,11 +62,23 @@ function toString(value) {
   return value;
 }
 
+function toOptionalString(value, fallback = "") {
+  if (value === null || value === undefined) return fallback;
+  return toString(value);
+}
+
+function toOptionalObject(value, fallback = {}) {
+  if (value === null || value === undefined) return fallback;
+  return toObject(value);
+}
+
 function normalizeRuleResult(ruleResult) {
   const safeRule = toObject(ruleResult);
   return {
+    rule_id: toString(safeRule.rule_id),
     rule_name: toString(safeRule.rule_name),
     severity: toString(safeRule.severity),
+    message: toString(safeRule.message),
     matched_phrases: toArray(safeRule.matched_phrases).map((phrase) => toString(phrase)),
     recommendation: toString(safeRule.recommendation),
   };
@@ -69,7 +86,7 @@ function normalizeRuleResult(ruleResult) {
 
 function normalizeClause(clause) {
   const safeClause = toObject(clause);
-  const extractedFields = toObject(safeClause.extracted_fields);
+  const extractedFields = toOptionalObject(safeClause.extracted_fields, {});
   const riskScore = toRiskRatio(safeClause.ml_risk_score);
   const ruleResults = toArray(safeClause.rule_results).map((rule) => normalizeRuleResult(rule));
   const ambiguousTerms = toArray(safeClause.ambiguous_terms).map((term) => toString(term));
@@ -85,9 +102,13 @@ function normalizeClause(clause) {
   }
 
   return {
+    id: toOptionalNumber(safeClause.id),
+    contract_id: toOptionalNumber(safeClause.contract_id),
     order_index: toNumber(safeClause.order_index),
-    clause_text: toString(safeClause.clause_text),
-    clause_type: toString(safeClause.clause_type),
+    label: safeClause.label ?? null,
+    text: toString(safeClause.text),
+    clause_text: toString(safeClause.text),
+    clause_type: toOptionalString(safeClause.label, "Belirsiz"),
     ml_risk_score: riskScore,
     ml_risk_level: riskLevel,
     overall_status: status,
@@ -105,6 +126,7 @@ function buildSummary(summary) {
   return {
     violation_count: toNumber(safeSummary.violation_count),
     warning_count: toNumber(safeSummary.warning_count),
+    high_risk_clause_count: toNumber(safeSummary.high_risk_clause_count),
     average_ml_risk_score: toRiskRatio(safeSummary.average_ml_risk_score),
   };
 }
@@ -132,6 +154,11 @@ export function normalizeAnalysisResponse(raw) {
   const top_risks = buildTopRisks(clauses);
 
   return {
+    id: toOptionalNumber(safeRaw.id),
+    name: toOptionalString(safeRaw.name, ""),
+    date: toOptionalString(safeRaw.date, ""),
+    text_length: toOptionalNumber(safeRaw.text_length, 0),
+    clause_count: toOptionalNumber(safeRaw.clause_count, clauses.length),
     summary,
     clauses,
     top_risks,

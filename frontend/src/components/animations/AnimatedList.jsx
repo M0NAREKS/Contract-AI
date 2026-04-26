@@ -4,7 +4,9 @@ import "./AnimatedList.css";
 
 const AnimatedItem = ({ children, delay = 0, index, onMouseEnter, onClick }) => {
   const ref = useRef(null);
-  const inView = useInView(ref, { amount: 0.5 });
+  // Important: items should not "disappear" again when layout shifts (e.g. expanding accordions).
+  // So we animate in once, then keep them visible.
+  const inView = useInView(ref, { amount: 0.25, once: true });
 
   return (
     <motion.div

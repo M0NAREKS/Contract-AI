@@ -1,117 +1,104 @@
-# ContratAi Frontend
+# ContratAi Frontend (Vite + React)
 
-React + Vite tabanli sozlesme analiz arayuzu.  
-Bu proje, yuklenen sozlesmeleri backend'e gonderir, yeni API semasina gore normalize eder ve madde bazli risk/uyum analizini UI'da gosterir.
+Bu klasör, sözleşme yükleme + analiz sonuçlarını gösteren React arayüzünü içerir.
 
-## Ozellikler
+## Gereksinimler
 
-- Dosya yukleme (`.pdf`, `.doc`, `.docx`, `.txt`)
-- 8 adimli yukleme/analiz sureci gostergesi
-- Executive Summary paneli
-  - Toplam madde
-  - Ihlal sayisi
-  - Uyari sayisi
-  - Ortalama ML risk skoru
-- Madde listesi (accordion + sayfalama)
-- Madde detaylari:
-  - Siniflandirma (`clause_type`)
-  - Yapisal alanlar (`extracted_fields`)
-  - Belirsiz ifadeler (`ambiguous_terms`)
-  - Kural sonuclari (`rule_results`)
-- Durum bazli dinamik renkler:
-  - `violation` -> kirmizi vurgu
-  - `warning` -> sari vurgu
-  - `ok` -> yesil vurgu
+- Node.js (projede kullanılan paketlerle uyumlu güncel bir LTS önerilir)
+- Backend API’nin çalışıyor olması (frontend `Services` üzerinden istek atar)
 
-## Teknoloji
-
-- React
-- Vite
-- CSS
-- GSAP (metin/nav animasyonlari)
-- Motion (`motion/react`) bazi sayisal/akici animasyonlar
-
-## Proje Yapisi (Ozet)
-
-- `src/App.jsx`: Ana sayfa, yukleme akisi, summary ve sayfa yonetimi
-- `src/Services.js`: API cagrilari + response normalization
-- `src/components/Detail/ClauseList.jsx`: Madde listeleme ve sayfalama
-- `src/components/Detail/ClauseItem.jsx`: Madde karti/detay paneli
-- `src/mockData.js`: Gelistirme icin mock analiz cevabi
-
-## API Entegrasyonu
-
-`Services.js` uzerinden iki endpoint kullanilir:
-
-- `POST /upload-contract`
-- `POST /analyze-contract`
-
-Gonderim tipi: `multipart/form-data` (`file` alani)
-
-Base URL `.env` dosyasindan gelir:
-
-```env
-VITE_API_BASE_URL=http://localhost:8000
-```
-
-Tam URL olusumu:
-
-- `POST {VITE_API_BASE_URL}/upload-contract`
-- `POST {VITE_API_BASE_URL}/analyze-contract`
-
-## Beklenen Response Semasi
-
-`normalizeAnalysisResponse` bu semayi bekler:
-
-```json
-{
-  "summary": {
-    "violation_count": 0,
-    "warning_count": 0,
-    "average_ml_risk_score": 0.0
-  },
-  "clauses": [
-    {
-      "order_index": 1,
-      "clause_text": "...",
-      "clause_type": "...",
-      "ml_risk_score": 0.0,
-      "ml_risk_level": "low | medium | high",
-      "overall_status": "violation | warning | ok",
-      "ambiguous_terms": ["..."],
-      "extracted_fields": {},
-      "rule_results": [
-        {
-          "rule_name": "...",
-          "severity": "low | medium | high | warning | critical",
-          "matched_phrases": ["..."],
-          "recommendation": "..."
-        }
-      ]
-    }
-  ]
-}
-```
-
-Notlar:
-
-- Veri dogrulama strict'tir (tip ve zorunlu alan kontrolleri var).
-- `toArray` ve `toNumber` kontrolleri bilincli olarak gevsetilmemistir.
-
-## Gelistirme
+## Kurulum
 
 ```bash
+cd frontend
 npm install
+```
+
+## Geliştirme
+
+```bash
+cd frontend
 npm run dev
 ```
 
-## Build
+## Backend bağlantısı (API)
+
+`src/Services.js` içinde API tabanı şu şekilde belirlenir:
+
+- Varsayılan: `VITE_API_BASE_URL` tanımlı değilse **`/api`**
+- Özelleştirme: `frontend/.env` içine örneğin:
+  - `VITE_API_BASE_URL=http://127.0.0.1:8000`
+
+`vite.config.js` dev server için `/api` isteklerini **`http://127.0.0.1:8000`** adresine proxy’ler (path’ten `/api` prefix’i kaldırarak).
+
+## Production build
 
 ```bash
+cd frontend
 npm run build
+npm run preview
 ```
 
-## Mock Veri Davranisi
+## Proje yapısı (özet)
 
-- Uygulama acilisinda mock veri otomatik yuklenmez.
-- `Mock Veri Getir` butonuna basildiginda `mockData.js` verisi normalize edilip ekrana basilir.
+- `src/main.jsx`: React giriş noktası
+- `src/App.jsx`: Ana uygulama akışı (ana sayfa + detay sayfası routing’i)
+- `src/App.css`: Global stiller ve tema değişkenleri
+- `src/Services.js`: Backend çağrıları
+- `src/components/Detail/*`: Detay sayfası bileşenleri (`ClauseList`, `ClauseItem`, `RiskSummary`)
+- `src/components/animations/*`: Animasyon bileşenleri (`DarkVeil`, `AnimatedList`, `PillNav`, …)
+
+## Routing / sayfalar
+
+Uygulama “router kütüphanesi” yerine `window.history.pushState` + `popstate` ile iki sayfa modu kullanır:
+
+- `/` → ana sayfa (upload + sonuç özeti)
+- `/maddeler` → detay sayfası (meta + madde listesi + risk paneli)
+
+Detay sayfasına geçildiğinde sayfa üstten başlatılması için `App.jsx` içinde `currentPage === "clauses"` durumunda `window.scrollTo({ top: 0 })` tetiklenir.
+
+## Tema (Light / Dark)
+
+- Tema `document.documentElement` üzerinde `data-theme="light|dark"` attribute’u ile yönetilir.
+- Seçim `localStorage` içinde `theme` anahtarıyla saklanır.
+- Stil tarafında `App.css` içinde:
+  - `:root` → dark tema değişkenleri
+  - `[data-theme="light"]` → light tema değişkenleri
+  - Ayrıca DarkVeil paleti için `--dv-*` değişkenleri tanımlanır (DarkVeil + tema butonu aynı renk dilini paylaşır)
+
+### Header / PillNav
+
+- `PillNav` light temada `pillColor` olarak `#EEEEEE` kullanır (hover rengine dokunulmadan).
+- Light/Dark butonu `PillNav`’ın sağında yer alır.
+
+## DarkVeil arka plan animasyonu
+
+`DarkVeil` katmanları `src/components/animations/DarkVeil.css` içinde `var(--dv-glow-*)` ve `var(--dv-deep-*)` ile boyanır. Bu değişkenler `App.css` içinde temaya göre set edilir; böylece light/dark geçişlerinde arka plan animasyonu da paletle uyumlu kalır.
+
+## Detay sayfası UX notları
+
+### “Riskli Maddeler” paneli (`RiskSummary`)
+
+- Başlık: **Riskli Maddeler**
+- Liste: “Top 5” değil; kriterlere uyan **tüm** maddeler listelenir.
+- Bir maddeye tıklanınca `ClauseList` içinde ilgili maddeye kaydırma + açma davranışı tetiklenir.
+
+Kapsama (özet):
+
+- **Risk** tarafı: `overall_status === "violation"` veya `ml_risk_level === "high"` veya `ml_risk_score >= 0.7` veya kural severity’si `high/critical/violation`
+- **Uyarı** tarafı: `ml_risk_level` medium/warning veya `0.45 <= ml_risk_score < 0.7` veya `overall_status === "warning"` veya kural severity’si `warning/medium`
+
+> Not: `src/Services.js` içinde `normalizeAnalysisResponse` hâlâ `top_risks` üretir; UI tarafında `RiskSummary` bu alanı kullanmak zorunda değildir.
+
+### `AnimatedList` + madde aç/kapa
+
+`AnimatedList` içinde `useInView(..., { once: true })` kullanılır. Böylece accordion açılınca layout kayması sonrası alttaki maddelerin “kaybolması” (tekrar opacity animasyonuna düşmesi) engellenir.
+
+## Ana sayfa layout notları
+
+Ana sayfadaki iki kolonlu gridde (`App.jsx` + `App.css`), “Sonuç Görünümü” içindeki **Sözleşme maddelerine ulaşın** butonu; “Sözleşmeyi Yükle ve Analiz Et” ile aynı alt hizaya gelmesi için `homeGridPanel` / `homePanelBody` flex düzenine alınmıştır.
+
+## Stil geliştirme notları
+
+- Çoğu renk `App.css` içindeki CSS değişkenleri üzerinden yönetilir.
+- Light temada bazı bileşenler (ör. liste gradient overlay’leri) `AnimatedList.css` içinde `[data-theme="light"]` override’ları ile koyu temadan arındırılır.

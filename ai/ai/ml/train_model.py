@@ -1,105 +1,119 @@
+import os
 import pandas as pd
 import numpy as np
 import joblib
-import os
-from sklearn.ensemble import HistGradientBoostingClassifier
-from sklearn.preprocessing import StandardScaler, LabelEncoder
-from sklearn.model_selection import train_test_split, cross_val_score, GridSearchCV
-from sklearn.metrics import classification_report, confusion_matrix, roc_auc_score
+from sklearn.pipeline import Pipeline
+from sklearn.compose import ColumnTransformer
+from sklearn.preprocessing import StandardScaler, OneHotEncoder
+from sklearn.linear_model import LogisticRegression
 
-def train_gradient_boosting_model():
-    # Find dataset path
-    dataset_path = os.path.join(os.path.dirname(__file__), "../../data/datasets/synthetic_clauses.csv")
-    if not os.path.exists(dataset_path):
-        dataset_path = "data/datasets/synthetic_clauses.csv"
-
-    print(f"Veri yükleniyor: {dataset_path}")
-    df = pd.read_csv(dataset_path)
-
-    CLAUSE_TYPE_LIST = [
-        "payment", "penalty", "termination",
-        "confidentiality", "liability", "data_protection", "other"
-    ]
-
-    le = LabelEncoder()
-    le.fit(CLAUSE_TYPE_LIST)
+def generate_synthetic_data(n_samples=2000):
+    np.random.seed(42)
     
-    # Handle unseen clause types
-    df["clause_type"] = df["clause_type"].apply(lambda x: x if x in CLAUSE_TYPE_LIST else "other")
-    df["clause_type_enc"] = le.transform(df["clause_type"])
-
-    FEATURES = ["payment_term_days", "penalty_percentage", "ambiguity_flag", "clause_type_enc"]
-    X = df[FEATURES]
+    clause_types = ['payment', 'penalty', 'termination', 'confidentiality', 'liability', 'data_protection', 'other']
     
-    # Hedef değişkenini (risk skoru 0-1) binary risk etiketine (1 veya 0) çevir
-    y = (df["risk_label"] >= 0.5).astype(int)
-
-    # Train/test split
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=0.2, random_state=42, stratify=y
-    )
-
-    # Scale
-    scaler = StandardScaler()
-    X_train_scaled = scaler.fit_transform(X_train)
-    X_test_scaled = scaler.transform(X_test)
-
-    print("=== HistGradientBoosting Modeli Eğitiliyor (Grid Search) ===")
-    
-    gb_base = HistGradientBoostingClassifier(random_state=42)
-    
-    param_grid = {
-        'max_iter': [50, 100, 200],
-        'max_depth': [3, 5, 7],
-        'learning_rate': [0.01, 0.1, 0.2]
-    }
-    
-    grid_search = GridSearchCV(
-        estimator=gb_base,
-        param_grid=param_grid,
-        scoring='roc_auc',
-        cv=3,
-        n_jobs=-1,
-        verbose=1
-    )
-    
-    grid_search.fit(X_train_scaled, y_train)
-    
-    best_model = grid_search.best_estimator_
-    print(f"\nEn iyi hiperparametreler: {grid_search.best_params_}")
-
-    # Değerlendirme
-    print("\n=== Gradient Boosting Model Performansı (Test Seti) ===")
-    y_pred = best_model.predict(X_test_scaled)
-    y_proba = best_model.predict_proba(X_test_scaled)[:, 1]
-    
-    print(classification_report(y_test, y_pred))
-    try:
-        auc_score = roc_auc_score(y_test, y_proba)
-        print(f"ROC AUC Score: {auc_score:.4f}")
-    except ValueError:
-        print("Tüm test setinde tek bir sınıf olabilir, ROC hesaplanamadı.")
+    data = []
+    for _ in range(n_samples):
+        c_type = np.random.choice(clause_types)
         
-    print("\nConfusion Matrix:")
-    print(confusion_matrix(y_test, y_pred))
+        # Default values
+        penalty = 0.0
+        payment_days = 0
+        ambiguity = np.random.choice([0, 1], p=[0.8, 0.2])
+        
+        if c_type == 'penalty':
+            penalty = np.random.exponential(scale=3.0) # mostly low, but some high
+        elif c_type == 'payment':
+            payment_days = int(np.random.normal(loc=30, scale=45))
+            if payment_days < 0:
+                payment_days = 0
+                
+        # Base risk logic for synthetic labels
+        risk_score = 0.0
+        
+        # Penalties > 5% are high risk
+        if c_type == 'penalty':
+            if penalty > 10.0:
+                risk_score += 0.8
+            elif penalty > 3.0:
+                risk_score += 0.4
+            else:
+                risk_score += 0.1
+                
+        # Payment terms > 60 days are high risk
+        if c_type == 'payment':
+            if payment_days > 90:
+                risk_score += 0.7
+            elif payment_days > 45:
+                risk_score += 0.3
+            else:
+                risk_score += 0.1
+                
+        # Ambiguity always adds risk
+        if ambiguity == 1:
+            risk_score += 0.3
+            
+        # Certain clauses carry inherent medium risk if not standard
+        if c_type in ['liability', 'termination']:
+            risk_score += 0.2
+            
+        # Add some noise
+        risk_score += np.random.normal(0, 0.05)
+        
+        # Bound risk
+        risk_score = max(0.0, min(1.0, risk_score))
+        
+        # Mapping to classes: 0 (low), 1 (medium), 2 (high)
+        if risk_score < 0.3:
+            label = 0
+        elif risk_score < 0.7:
+            label = 1
+        else:
+            label = 2
+            
+        data.append({
+            'clause_type': c_type,
+            'penalty_percentage': penalty,
+            'payment_term_days': payment_days,
+            'ambiguity_flag': ambiguity,
+            'risk_class': label
+        })
+        
+    return pd.DataFrame(data)
 
-    # Cross Val
-    cv_scores = cross_val_score(best_model, scaler.transform(X), y, cv=5, scoring='accuracy')
-    print(f"\nCross-validation accuracy: {cv_scores.mean():.3f} (+/- {cv_scores.std():.3f})")
+def train_and_save_model():
+    print("Sentetik veri üretiliyor...")
+    df = generate_synthetic_data(3000)
+    
+    X = df[['clause_type', 'penalty_percentage', 'payment_term_days', 'ambiguity_flag']]
+    y = df['risk_class']
+    
+    numeric_features = ['penalty_percentage', 'payment_term_days', 'ambiguity_flag']
+    numeric_transformer = StandardScaler()
 
-    # Modeli Kaydet
-    save_dir = os.path.join(os.path.dirname(__file__), "models")
-    os.makedirs(save_dir, exist_ok=True)
+    categorical_features = ['clause_type']
+    categorical_transformer = OneHotEncoder(handle_unknown='ignore')
+
+    preprocessor = ColumnTransformer(
+        transformers=[
+            ('num', numeric_transformer, numeric_features),
+            ('cat', categorical_transformer, categorical_features)
+        ])
+
+    clf = Pipeline(steps=[('preprocessor', preprocessor),
+                          ('classifier', LogisticRegression(max_iter=1000))])
+
+    print("Model (Logistic Regression) eğitiliyor...")
+    clf.fit(X, y)
     
-    model_path = os.path.join(save_dir, "risk_model.pkl")
-    joblib.dump({
-        "model": best_model,
-        "scaler": scaler,
-        "encoder": le,
-        "features": FEATURES
-    }, model_path)
+    score = clf.score(X, y)
+    print(f"Eğitim Skoru (Accuracy): {score:.2f}")
     
-    print(f"\n✅ Gelişmiş Risk Modeli kaydedildi: {model_path}")
+    os.makedirs(os.path.join(os.path.dirname(__file__), 'models'), exist_ok=True)
+    model_path = os.path.join(os.path.dirname(__file__), 'models', 'structured_risk_model.pkl')
+    
+    joblib.dump(clf, model_path)
+    print(f"Model başarıyla kaydedildi: {model_path}")
 
 if __name__ == "__main__":
-    train_gradient_boosting_model()
+    train_and_save_model()

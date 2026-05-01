@@ -5,6 +5,7 @@ from typing import Dict, Any
 from dotenv import load_dotenv
 from groq import AsyncGroq
 from openai import AsyncOpenAI
+from anthropic import AsyncAnthropic
 from ai.schemas import ContractAnalysisResult
 
 # Çevresel değişkenleri yükle (.env dosyasından)
@@ -12,12 +13,15 @@ load_dotenv()
 
 openai_api_key = os.environ.get("OPENAI_API_KEY")
 groq_api_key = os.environ.get("GROQ_API_KEY", "dummy_key_for_mock_mode")
+anthropic_api_key = os.environ.get("ANTHROPIC_API_KEY")
 
 openai_client = AsyncOpenAI(api_key=openai_api_key) if openai_api_key else None
 groq_client = AsyncGroq(api_key=groq_api_key)
+anthropic_client = AsyncAnthropic(api_key=anthropic_api_key) if anthropic_api_key else None
 
 GROQ_MODEL = "openai/gpt-oss-120b"
 OPENAI_MODEL = "gpt-4o-mini"
+ANTHROPIC_MODEL = "claude-3-5-sonnet-20241022"
 
 SYSTEM_PROMPT = """
 Sen uzman bir hukuki analiz yapay zekasısın.
@@ -140,9 +144,9 @@ MOCK_RESPONSE = {
 
 from ai.ml.risk_scorer import score_risk
 
-async def extract_clauses(text: str, mock: bool = False) -> ContractAnalysisResult:
+async def extract_clauses(text: str, mock: bool = False, provider: str = "groq") -> ContractAnalysisResult:
     """
-    Sözleşme metnini Groq LLM kullanarak JSON formatında maddelere ayırır ve yapılandırılmış 
+    Sözleşme metnini LLM kullanarak JSON formatında maddelere ayırır ve yapılandırılmış 
     özellikleri çıkarır. LLM'den gelen verileri Lokal Makine Öğrenmesi (ML) 
     modelimize gönderip Risk Skoru ile zenginleştirir.
     """
@@ -154,13 +158,24 @@ async def extract_clauses(text: str, mock: bool = False) -> ContractAnalysisResu
                 {"role": "system", "content": SYSTEM_PROMPT},
                 {"role": "user", "content": text}
             ]
-            if openai_client:
+            if provider == "openai" and openai_client:
                 completion = await openai_client.chat.completions.create(
                     messages=messages,
                     model=OPENAI_MODEL,
                     temperature=0.0,
                     response_format={"type": "json_object"},
                 )
+                raw_content = completion.choices[0].message.content
+            elif provider == "anthropic" and anthropic_client:
+                # Anthropic format
+                message = await anthropic_client.messages.create(
+                    model=ANTHROPIC_MODEL,
+                    max_tokens=8000,
+                    temperature=0.0,
+                    system=SYSTEM_PROMPT,
+                    messages=[{"role": "user", "content": text}]
+                )
+                raw_content = message.content[0].text
             else:
                 completion = await groq_client.chat.completions.create(
                     messages=messages,
@@ -169,7 +184,9 @@ async def extract_clauses(text: str, mock: bool = False) -> ContractAnalysisResu
                     reasoning_effort="medium",
                     response_format={"type": "json_object"},
                 )
-            data = json.loads(completion.choices[0].message.content)
+                raw_content = completion.choices[0].message.content
+                
+            data = json.loads(raw_content)
             
         # 🚀 LOKAL ML MODELİ ENTEGRASYONU (Risk Skorlama)
         # LLM'nin çıkardığı features'ları ML modeline sokup asıl risk değerlerini çekiyoruz

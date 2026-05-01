@@ -1,0 +1,87 @@
+{
+  "info": {
+    "_postman_id": "6dd3d535-c1c0-4c33-9a95-1182f7b02fe6",
+    "name": "Contract Upload API",
+    "description": "Basic health check and contract upload requests for the FastAPI contract ingestion service.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Health",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/health",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "health"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Upload Contract",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {
+              "key": "file",
+              "type": "file",
+              "src": ""
+            }
+          ]
+        },
+        "url": {
+          "raw": "{{baseUrl}}/upload-contract",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "upload-contract"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Analyze Contract",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {
+              "key": "file",
+              "type": "file",
+              "src": ""
+            }
+          ]
+        },
+        "url": {
+          "raw": "{{baseUrl}}/analyze-contract",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "analyze-contract"
+          ]
+        }
+      },
+      "response": []
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://127.0.0.1:8000"
+    }
+  ]
+}

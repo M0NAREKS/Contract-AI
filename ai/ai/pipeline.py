@@ -7,14 +7,14 @@ from ai.schemas import (
 )
 
 
-async def analyze_contract(contract_text: str) -> ContractAnalysisResult:
+async def analyze_contract(contract_text: str, provider: str = "groq") -> ContractAnalysisResult:
     """
     Sözleşme metnini alır, tam analizi döndürür.
     Bu fonksiyon tüm AI pipeline'ını çalıştırır.
     """
 
     # 1. Maddelere ayır ve sınıflandır
-    extraction_result = await extract_clauses(contract_text)
+    extraction_result = await extract_clauses(contract_text, provider=provider)
     
     # If extraction fails or is empty, return early
     if not extraction_result.clauses:

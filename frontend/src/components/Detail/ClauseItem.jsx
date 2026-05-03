@@ -36,6 +36,15 @@ function getRiskLevelMeta(level) {
   return { label: "Dusuk Risk", className: "riskLow" };
 }
 
+function getEffectiveRiskMeta(riskLevel, riskScore) {
+  const levelMeta = getRiskLevelMeta(riskLevel);
+  const scoreMeta = getRiskMeta(riskScore);
+  const priority = { riskLow: 0, riskMedium: 1, riskHigh: 2 };
+  return (priority[scoreMeta.className] ?? 0) > (priority[levelMeta.className] ?? 0)
+    ? scoreMeta
+    : levelMeta;
+}
+
 function ClauseItem({ clause, displayIndex, isOpen, onToggle, anchorId }) {
   const clauseNo = clause?.order_index ?? displayIndex ?? clause?.clause_no ?? "-";
   const clauseId = clause?.id ?? "-";
@@ -45,7 +54,7 @@ function ClauseItem({ clause, displayIndex, isOpen, onToggle, anchorId }) {
   const clauseType = clause?.clause_type || "Belirsiz";
   const riskScore = Number(clause?.ml_risk_score ?? clause?.risk_score ?? 0);
   const riskLevel = String(clause?.ml_risk_level || "").toLowerCase();
-  const riskMeta = riskLevel ? getRiskLevelMeta(riskLevel) : getRiskMeta(riskScore);
+  const riskMeta = getEffectiveRiskMeta(riskLevel, riskScore);
   const ambiguousTerms = useMemo(() => toArray(clause?.ambiguous_terms), [clause?.ambiguous_terms]);
   const ruleResults = useMemo(() => toArray(clause?.rule_results), [clause?.rule_results]);
   const extractedFields = clause?.extracted_fields && typeof clause.extracted_fields === "object" ? clause.extracted_fields : {};
@@ -139,9 +148,13 @@ function ClauseItem({ clause, displayIndex, isOpen, onToggle, anchorId }) {
                   <div className="ruleTop">
                     <span className="ruleName">{renderListItem(rule?.rule_name)}</span>
                     <span
-                      className={`badge ruleSeverity severity-${String(rule?.severity || "")
-                        .toLowerCase()
-                        .replace("violation", "high")}`}
+                      className={`badge ruleSeverity ${(() => {
+                        const s = String(rule?.severity || "").toLowerCase();
+                        if (s === "violation" || s === "critical") return "severity-critical";
+                        if (s === "high") return "severity-high";
+                        if (s === "warning" || s === "medium") return "severity-warning";
+                        return "severity-ok";
+                      })()}`}
                     >
                       {renderListItem(rule?.severity)}
                     </span>

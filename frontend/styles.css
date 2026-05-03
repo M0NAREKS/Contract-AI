@@ -16,6 +16,158 @@
   --shadow: 0 18px 60px rgba(73, 47, 19, 0.12);
 }
 
+[data-theme="dark"] {
+  --bg: #0f141a;
+  --surface: rgba(22, 29, 37, 0.75);
+  --surface-strong: #1a222c;
+  --line: rgba(255, 255, 255, 0.1);
+  /* Bir tık daha açık: uzun metin ve slate kart üzerinde silik kalmaması için */
+  --ink: #eef2f7;
+  --muted: #a8b8cc;
+
+  --accent: #f59e0b;
+  --accent-soft: rgba(245, 158, 11, 0.12);
+
+  --teal: #10b981;
+  --teal-soft: rgba(16, 185, 129, 0.12);
+
+  --warn: #fb923c;
+  --warn-soft: rgba(251, 146, 60, 0.12);
+
+  --danger: #ef4444;
+  --danger-soft: rgba(239, 68, 68, 0.12);
+
+  --shadow: 0 20px 50px rgba(0, 0, 0, 0.4);
+}
+
+[data-theme="dark"] .ambient-one {
+  background: rgba(245, 158, 11, 0.1);
+}
+
+[data-theme="dark"] .ambient-two {
+  background: rgba(16, 185, 129, 0.08);
+}
+
+[data-theme="dark"] body {
+  color: var(--ink);
+  background:
+    radial-gradient(circle at top left, rgba(245, 158, 11, 0.05), transparent 40%),
+    radial-gradient(circle at 92% 22%, rgba(16, 185, 129, 0.06), transparent 32%),
+    linear-gradient(180deg, #0f141a 0%, #07090c 100%);
+}
+
+[data-theme="dark"] .eyebrow,
+[data-theme="dark"] .panel-kicker,
+[data-theme="dark"] .status-label,
+[data-theme="dark"] .clause-order,
+[data-theme="dark"] .meta-block > span,
+[data-theme="dark"] .metric-card > span {
+  color: #b6c4d6;
+}
+
+[data-theme="dark"] .hero p {
+  color: #c5d0e0;
+}
+
+[data-theme="dark"] .dropzone {
+  border: 1.5px dashed rgba(255, 255, 255, 0.22);
+  background:
+    linear-gradient(135deg, rgba(245, 158, 11, 0.1), rgba(26, 34, 44, 0.72)),
+    var(--surface-strong);
+}
+
+[data-theme="dark"] .dropzone:hover,
+[data-theme="dark"] .dropzone.dragover {
+  border-color: rgba(245, 158, 11, 0.45);
+  box-shadow: 0 20px 50px rgba(245, 158, 11, 0.14);
+}
+
+[data-theme="dark"] .selected-file,
+[data-theme="dark"] .message-box {
+  background: rgba(26, 34, 44, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: var(--muted);
+}
+
+[data-theme="dark"] .message-box.success {
+  color: #34d399;
+  background: rgba(16, 185, 129, 0.16);
+}
+
+[data-theme="dark"] .message-box.error {
+  color: #f87171;
+  background: rgba(239, 68, 68, 0.14);
+}
+
+[data-theme="dark"] .primary {
+  color: #0c0f12;
+  background: linear-gradient(135deg, #fbbf24, #d97706);
+  box-shadow: 0 16px 32px rgba(245, 158, 11, 0.28);
+}
+
+[data-theme="dark"] .secondary {
+  color: var(--ink);
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.32), rgba(26, 34, 44, 0.96));
+  border: 1px solid rgba(16, 185, 129, 0.38);
+}
+
+[data-theme="dark"] .ghost {
+  color: var(--ink);
+  background: rgba(30, 38, 48, 0.88);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+[data-theme="dark"] .badge {
+  background: rgba(30, 38, 48, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+[data-theme="dark"] .badge.status-ok {
+  color: #34d399;
+}
+
+[data-theme="dark"] .badge.status-warning {
+  color: #fdba74;
+}
+
+[data-theme="dark"] .badge.status-violation {
+  color: #f87171;
+}
+
+[data-theme="dark"] .badge.risk-low {
+  color: #34d399;
+}
+
+[data-theme="dark"] .badge.risk-medium {
+  color: #fdba74;
+}
+
+[data-theme="dark"] .badge.risk-high {
+  color: #f87171;
+}
+
+[data-theme="dark"] .clause-list.empty {
+  color: var(--muted);
+  border-color: rgba(255, 255, 255, 0.14);
+}
+
+[data-theme="dark"] .clause-text {
+  color: #d1dae6;
+}
+
+[data-theme="dark"] .token {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+[data-theme="dark"] .rule-pill {
+  background: rgba(30, 38, 48, 0.88);
+}
+
+[data-theme="dark"] .rule-pill small {
+  color: #b4c2d4;
+}
+
 * {
   box-sizing: border-box;
 }

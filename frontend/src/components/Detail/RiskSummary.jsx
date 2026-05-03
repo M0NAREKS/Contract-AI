@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { AnimatedList } from "../animations";
 
 const HIGH_RISK_SCORE = 0.7;
 const MEDIUM_RISK_SCORE = 0.45;
@@ -100,25 +101,37 @@ function RiskSummary({ clauses, onSelectClause }) {
           {panelClauses.length} Madde · {riskCount} Risk · {uyariCount} Uyarı
         </span>
       </div>
-      <div className="riskList">
-        {panelClauses.map((clause, index) => {
+      <AnimatedList
+        items={panelClauses}
+        showGradients={true}
+        enableArrowNavigation={true}
+        displayScrollbar={true}
+        className="riskAnimatedList"
+        itemClassName="riskAnimatedItemWrap"
+        onItemSelect={(clause) => {
+          if (typeof onSelectClause !== "function") return;
+          const clauseNo = clause?.order_index ?? clause?.clause_no ?? null;
+          if (clauseNo === null || clauseNo === undefined) return;
+          onSelectClause(clauseNo);
+        }}
+        renderItem={(clause, index) => {
           const clauseNo = clause?.order_index ?? clause?.clause_no ?? null;
           const isClickable = typeof onSelectClause === "function" && clauseNo !== null && clauseNo !== undefined;
           const kind = getClauseKind(clause);
+          const status = String(clause?.overall_status || "").toLowerCase();
+          const isViolation = status === "violation";
+          const riskPillClass = isViolation
+            ? "riskKindViolation"
+            : kind === "risk"
+              ? "riskKindHighRisk"
+              : "riskKindUyari";
+          const riskPillLabel = isViolation ? "Ihlal" : kind === "risk" ? "Risk" : "Uyarı";
           const scoreText = Number(clause?.ml_risk_score ?? clause?.risk_score ?? 0).toFixed(2);
           return (
             <article
-              key={clauseKey(clause, index)}
               className="riskItem"
               role={isClickable ? "button" : undefined}
               tabIndex={isClickable ? 0 : undefined}
-              onClick={
-                isClickable
-                  ? () => {
-                      onSelectClause(clauseNo);
-                    }
-                  : undefined
-              }
               onKeyDown={
                 isClickable
                   ? (e) => {
@@ -130,22 +143,22 @@ function RiskSummary({ clauses, onSelectClause }) {
                   : undefined
               }
             >
-            <div className="riskItemTop">
-              <strong>
-                Madde {clauseNo ?? "-"} - {clause?.label || "Belirsiz"}
-              </strong>
-              <span className="riskScore">
-                <span className={`riskKindPill ${kind === "risk" ? "riskKindRisk" : "riskKindUyari"}`}>
-                  {kind === "risk" ? "Risk" : "Uyarı"}
+              <div className="riskItemTop">
+                <strong>
+                  Madde {clauseNo ?? "-"} - {clause?.label || "Belirsiz"}
+                </strong>
+                <span className="riskScore">
+                  <span className={`riskKindPill ${riskPillClass}`}>
+                    {riskPillLabel}
+                  </span>
+                  Skor: {scoreText}
                 </span>
-                Skor: {scoreText}
-              </span>
-            </div>
-            <p className="riskReason">{getRiskReason(clause)}</p>
-          </article>
+              </div>
+              <p className="riskReason">{getRiskReason(clause)}</p>
+            </article>
           );
-        })}
-      </div>
+        }}
+      />
     </section>
   );
 }

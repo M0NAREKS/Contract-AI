@@ -17,8 +17,15 @@ OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "dummy")
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY")
 
+# Chatbot ve diğer tekil işlemler için ayrı bir API Key tanımlanmışsa onu kullan, yoksa ana listedeki İLK key'i al
+GROQ_CHAT_API_KEY = os.environ.get("GROQ_CHAT_API_KEY")
+if GROQ_CHAT_API_KEY:
+    chat_groq_key = GROQ_CHAT_API_KEY.strip()
+else:
+    chat_groq_key = GROQ_API_KEY.split(",")[0].strip()
+
 openai_client = AsyncOpenAI(api_key=OPENAI_API_KEY) if OPENAI_API_KEY else None
-groq_client = AsyncGroq(api_key=GROQ_API_KEY)
+groq_client = AsyncGroq(api_key=chat_groq_key)
 anthropic_client = AsyncAnthropic(api_key=ANTHROPIC_API_KEY) if ANTHROPIC_API_KEY else None
 
 from ai.pipeline import analyze_contract

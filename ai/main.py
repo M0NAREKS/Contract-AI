@@ -93,12 +93,17 @@ async def analyze(request: ContractRequest):
                 status = "warning"
                 
             final_risk_score = clause.risk_score or 0.0
-            if status == "violation" and final_risk_score < 0.85:
-                final_risk_score = 0.85
-            elif status == "warning" and final_risk_score < 0.50:
-                final_risk_score = 0.50
-                
-            final_risk_level = "high" if final_risk_score >= 0.7 else ("medium" if final_risk_score >= 0.3 else "low")
+            final_risk_level = clause.risk_level or "low"
+            
+            if status == "violation":
+                final_risk_score = max(final_risk_score, 0.85)
+                final_risk_level = "high"
+            elif status == "warning":
+                final_risk_score = max(final_risk_score, 0.50)
+                if final_risk_score >= 0.7:
+                    final_risk_level = "high"
+                else:
+                    final_risk_level = "medium"
             
             # Eğer AI risk bulmuşsa ama rule_engine sebep üretememişse (keyword yoksa), sentetik bir sebep ekle:
             if not rule_results and status in ["warning", "violation"]:

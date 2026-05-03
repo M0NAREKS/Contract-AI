@@ -92,6 +92,25 @@ async def analyze(request: ContractRequest):
             elif rule_results or clause.risk_level in ["medium", "high"]:
                 status = "warning"
                 
+            final_risk_score = clause.risk_score or 0.0
+            if status == "violation" and final_risk_score < 0.85:
+                final_risk_score = 0.85
+            elif status == "warning" and final_risk_score < 0.50:
+                final_risk_score = 0.50
+                
+            final_risk_level = "high" if final_risk_score >= 0.7 else ("medium" if final_risk_score >= 0.3 else "low")
+            
+            # Eğer AI risk bulmuşsa ama rule_engine sebep üretememişse (keyword yoksa), sentetik bir sebep ekle:
+            if not rule_results and status in ["warning", "violation"]:
+                rule_results.append(RuleResultResponse(
+                    rule_id="ml_ai_risk",
+                    rule_name="AI Anomali Tespiti",
+                    severity=status,
+                    message="Yapay Zeka bu maddede potansiyel olarak taraflı, alışılmadık veya riskli bir hukuki dil tespit etti.",
+                    recommendation="Maddeyi manuel olarak dikkatlice inceleyin.",
+                    matched_phrases=[]
+                ))
+                
             clauses_out.append(ClauseAnalysisResponse(
                 id=clause.clause_id,
                 contract_id=request.id,
@@ -99,8 +118,8 @@ async def analyze(request: ContractRequest):
                 label=None,
                 text=clause.text,
                 overall_status=status,
-                ml_risk_score=clause.risk_score or 0.0,
-                ml_risk_level=clause.risk_level or "low",
+                ml_risk_score=final_risk_score,
+                ml_risk_level=final_risk_level,
                 rewrite_suggestion=clause.rewrite_suggestion,
                 ambiguous_terms=clause.features.ambiguous_phrases,
                 rule_results=rule_results,

@@ -39,7 +39,7 @@ async def analyze_contract(contract_text: str, provider: str = "groq") -> Contra
         raw_features["ambiguous_phrases"] = ambiguity_result["ambiguous_phrases"]
 
         # 4. Rule engine
-        violations_raw = check_violations(raw_features)
+        violations_raw = check_violations(raw_features, raw_text)
         violations = [
             Violation(
                 rule_id=v["rule_id"],

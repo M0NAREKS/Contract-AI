@@ -177,15 +177,43 @@ async def extract_clauses(text: str, mock: bool = False, provider: str = "groq")
                 )
                 raw_content = message.content[0].text
             else:
-                completion = await groq_client.chat.completions.create(
-                    messages=messages,
-                    model=GROQ_MODEL,
-                    temperature=0.0,
-                    reasoning_effort="medium",
-                    response_format={"type": "json_object"},
-                )
-                raw_content = completion.choices[0].message.content
+                # Birden fazla Groq key varsa (virgülle ayrılmış), rate limit yiyince diğerine geç (Round-robin)
+                groq_keys = [k.strip() for k in os.environ.get("GROQ_API_KEY", "dummy").split(",") if k.strip()]
+                last_error = None
+                raw_content = None
                 
+                for key in groq_keys:
+                    try:
+                        temp_client = AsyncGroq(api_key=key)
+                        completion = await temp_client.chat.completions.create(
+                            messages=messages,
+                            model=GROQ_MODEL,
+                            temperature=0.0,
+                            reasoning_effort="medium",
+                            response_format={"type": "json_object"},
+                        )
+                        raw_content = completion.choices[0].message.content
+                        break # Başarılı olursa döngüden çık
+                    except Exception as e:
+                        if "rate_limit" in str(e).lower() or "429" in str(e):
+                            last_error = e
+                            continue # Rate limit yedi, sıradaki key'e geç
+                        raise e # Başka bir hataysa fırlat
+                
+                # Eğer tüm Groq keyleri limit yemişse ve OpenAI varsa ona düş (Fallback)
+                if not raw_content:
+                    if openai_client:
+                        print("Tüm Groq limitleri doldu, OpenAI Fallback devreye giriyor...")
+                        completion = await openai_client.chat.completions.create(
+                            messages=messages,
+                            model=OPENAI_MODEL,
+                            temperature=0.0,
+                            response_format={"type": "json_object"},
+                        )
+                        raw_content = completion.choices[0].message.content
+                    else:
+                        raise last_error or Exception("Kullanılabilir API key bulunamadı veya hepsi limit yedi.")
+                        
             data = json.loads(raw_content)
             
         # 🚀 LOKAL ML MODELİ ENTEGRASYONU (Risk Skorlama)

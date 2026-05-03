@@ -111,7 +111,7 @@ async def analyze(request: ContractRequest):
             final_risk_level = clause.risk_level or "low"
             
             if status == "violation":
-                final_risk_score = max(final_risk_score, 0.85)
+                final_risk_score = max(final_risk_score, 0.95)
                 final_risk_level = "high"
             elif status == "warning":
                 final_risk_score = max(final_risk_score, 0.50)
@@ -225,7 +225,10 @@ async def analyze_contract_file(file: UploadFile = File(...)):
     MEMORY_STORE["contracts"][cid] = text
     MEMORY_STORE["chat_history"][cid] = []
     
-    # We pass groq here as default, but you can change it if you like
+    # Groq TPM limitini aşmamak için çok uzun metinleri kırpıyoruz (yaklaşık 8000 token = 25000 karakter)
+    if len(text) > 25000:
+        text = text[:25000] + "\n\n... [SÖZLEŞMENİN GERİ KALANI ÇOK UZUN OLDUĞU İÇİN KESİLDİ] ..."
+
     request = ContractRequest(id=cid, name=file.filename or "contract", text=text, provider="groq")
     return await analyze(request)
 

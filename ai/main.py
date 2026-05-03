@@ -1,10 +1,25 @@
 from fastapi import FastAPI, HTTPException, File, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import List, Optional
 from datetime import datetime
 import io
 from pypdf import PdfReader
+import logging
+import os
+from openai import AsyncOpenAI
+from groq import AsyncGroq
+from anthropic import AsyncAnthropic
+
+logger = logging.getLogger(__name__)
+
+OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
+GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "dummy")
+ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY")
+
+openai_client = AsyncOpenAI(api_key=OPENAI_API_KEY) if OPENAI_API_KEY else None
+groq_client = AsyncGroq(api_key=GROQ_API_KEY)
+anthropic_client = AsyncAnthropic(api_key=ANTHROPIC_API_KEY) if ANTHROPIC_API_KEY else None
 
 from ai.pipeline import analyze_contract
 
@@ -13,7 +28,7 @@ app = FastAPI(title="Contract AI Service APi")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
+    allow_credentials=False,  # Fixed CORS vulnerability
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -21,7 +36,7 @@ app.add_middleware(
 class ContractRequest(BaseModel):
     id: int = 1
     name: str = "contract"
-    text: str
+    text: str = Field(..., max_length=500_000)
     provider: str = "groq"
 
 class RuleResultResponse(BaseModel):
@@ -152,7 +167,8 @@ async def analyze(request: ContractRequest):
         )
         
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Pipeline error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 def extract_text_from_file(filename: str, content: bytes) -> str:
     if filename.lower().endswith(".pdf"):
@@ -219,13 +235,6 @@ class ChatResponse(BaseModel):
 
 @app.post("/api/v1/chat", response_model=ChatResponse)
 async def chat_with_contract(request: ChatRequest):
-    import os
-    from openai import AsyncOpenAI
-    from groq import AsyncGroq
-    
-    openai_key = os.environ.get("OPENAI_API_KEY")
-    groq_key = os.environ.get("GROQ_API_KEY", "dummy")
-    
     c_id = request.contract_id
     contract_text = MEMORY_STORE["contracts"].get(c_id, request.contract_text)
     history = MEMORY_STORE["chat_history"].get(c_id, [])
@@ -237,15 +246,13 @@ async def chat_with_contract(request: ChatRequest):
         messages.extend(history)
         messages.append({"role": "user", "content": request.user_message})
         
-        if openai_key:
-            client = AsyncOpenAI(api_key=openai_key)
-            completion = await client.chat.completions.create(
+        if openai_client:
+            completion = await openai_client.chat.completions.create(
                 model="gpt-4o-mini",
                 messages=messages
             )
         else:
-            client = AsyncGroq(api_key=groq_key)
-            completion = await client.chat.completions.create(
+            completion = await groq_client.chat.completions.create(
                 model="openai/gpt-oss-120b",
                 reasoning_effort="medium",
                 messages=messages
@@ -253,15 +260,16 @@ async def chat_with_contract(request: ChatRequest):
             
         answer = completion.choices[0].message.content
         
-        # Save to memory
+        # Save to memory with constraint
         history.append({"role": "user", "content": request.user_message})
         history.append({"role": "assistant", "content": answer})
         if c_id in MEMORY_STORE["chat_history"]:
-            MEMORY_STORE["chat_history"][c_id] = history
+            MEMORY_STORE["chat_history"][c_id] = history[-20:]
             
         return ChatResponse(answer=answer)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Chat error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 class ReviseRequest(BaseModel):
     contract_text: str
@@ -273,11 +281,6 @@ class ReviseResponse(BaseModel):
 
 @app.post("/api/v1/revise", response_model=ReviseResponse)
 async def revise_contract(request: ReviseRequest):
-    import os
-    from openai import AsyncOpenAI
-    from groq import AsyncGroq
-    from anthropic import AsyncAnthropic
-
     system_prompt = (
         "Sen uzman bir şirket avukatısın. Sana verilen sözleşme metnini ve ŞİRKET POLİTİKASINI (company_policy) incele.\n"
         "Politikaya aykırı olan maddeleri tespit et ve sözleşmeyi politikaya tam uyacak şekilde, "
@@ -290,9 +293,8 @@ async def revise_contract(request: ReviseRequest):
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt}
         ]
-        if request.provider == "anthropic" and os.environ.get("ANTHROPIC_API_KEY"):
-            client = AsyncAnthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
-            completion = await client.messages.create(
+        if request.provider == "anthropic" and anthropic_client:
+            completion = await anthropic_client.messages.create(
                 model="claude-3-5-sonnet-20241022",
                 max_tokens=8000,
                 temperature=0.2,
@@ -300,17 +302,16 @@ async def revise_contract(request: ReviseRequest):
                 messages=[{"role": "user", "content": user_prompt}]
             )
             ans = completion.content[0].text
-        elif request.provider == "openai" and os.environ.get("OPENAI_API_KEY"):
-            client = AsyncOpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
-            completion = await client.chat.completions.create(model="gpt-4o-mini", messages=messages)
+        elif request.provider == "openai" and openai_client:
+            completion = await openai_client.chat.completions.create(model="gpt-4o-mini", messages=messages)
             ans = completion.choices[0].message.content
         else:
-            client = AsyncGroq(api_key=os.environ.get("GROQ_API_KEY", "dummy"))
-            completion = await client.chat.completions.create(model="openai/gpt-oss-120b", messages=messages)
+            completion = await groq_client.chat.completions.create(model="openai/gpt-oss-120b", messages=messages)
             ans = completion.choices[0].message.content
         return ReviseResponse(revised_text=ans)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Revise error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 class GenerateRequest(BaseModel):
     scenario: str
@@ -321,11 +322,6 @@ class GenerateResponse(BaseModel):
 
 @app.post("/api/v1/generate", response_model=GenerateResponse)
 async def generate_contract(request: GenerateRequest):
-    import os
-    from openai import AsyncOpenAI
-    from groq import AsyncGroq
-    from anthropic import AsyncAnthropic
-
     system_prompt = (
         "Sen kıdemli bir kurumsal avukatsın. Sana verilen SENARYO'ya dayanarak, "
         "ilgili kanunlara uygun, tüm standart koruyucu maddeleri (gizlilik, fesih, mücbir sebep, yetkili mahkeme) içeren, "
@@ -338,9 +334,8 @@ async def generate_contract(request: GenerateRequest):
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt}
         ]
-        if request.provider == "anthropic" and os.environ.get("ANTHROPIC_API_KEY"):
-            client = AsyncAnthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
-            completion = await client.messages.create(
+        if request.provider == "anthropic" and anthropic_client:
+            completion = await anthropic_client.messages.create(
                 model="claude-3-5-sonnet-20241022",
                 max_tokens=8000,
                 temperature=0.3,
@@ -348,14 +343,13 @@ async def generate_contract(request: GenerateRequest):
                 messages=[{"role": "user", "content": user_prompt}]
             )
             ans = completion.content[0].text
-        elif request.provider == "openai" and os.environ.get("OPENAI_API_KEY"):
-            client = AsyncOpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
-            completion = await client.chat.completions.create(model="gpt-4o", messages=messages)
+        elif request.provider == "openai" and openai_client:
+            completion = await openai_client.chat.completions.create(model="gpt-4o", messages=messages)
             ans = completion.choices[0].message.content
         else:
-            client = AsyncGroq(api_key=os.environ.get("GROQ_API_KEY", "dummy"))
-            completion = await client.chat.completions.create(model="llama-3.3-70b-versatile", messages=messages)
+            completion = await groq_client.chat.completions.create(model="llama-3.3-70b-versatile", messages=messages)
             ans = completion.choices[0].message.content
         return GenerateResponse(drafted_contract=ans)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Generate error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")

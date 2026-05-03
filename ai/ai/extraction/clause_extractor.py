@@ -190,8 +190,9 @@ async def extract_clauses(text: str, mock: bool = False, provider: str = "groq")
             
         # 🚀 LOKAL ML MODELİ ENTEGRASYONU (Risk Skorlama)
         # LLM'nin çıkardığı features'ları ML modeline sokup asıl risk değerlerini çekiyoruz
+        import asyncio
         for clause in data.get("clauses", []):
-            ml_risk_data = score_risk(clause)
+            ml_risk_data = await asyncio.to_thread(score_risk, clause)
             clause["risk_score"] = float(ml_risk_data["risk_score"])
             clause["risk_level"] = ml_risk_data["risk_level"]
         

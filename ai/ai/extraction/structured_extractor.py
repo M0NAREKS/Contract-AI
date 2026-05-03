@@ -8,7 +8,8 @@ from dotenv import load_dotenv
 load_dotenv()
 
 openai_api_key = os.getenv("OPENAI_API_KEY")
-groq_api_key = os.getenv("GROQ_API_KEY", "dummy")
+raw_groq_key = os.getenv("GROQ_API_KEY", "dummy")
+groq_api_key = raw_groq_key.split(",")[0].strip()
 
 openai_client = OpenAI(api_key=openai_api_key) if openai_api_key else None
 groq_client = Groq(api_key=groq_api_key)

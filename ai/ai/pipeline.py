@@ -40,13 +40,23 @@ async def analyze_contract(contract_text: str, provider: str = "groq") -> Contra
 
         # 4. Rule engine
         violations_raw = check_violations(raw_features, raw_text)
-        violations = [
+        new_violations = [
             Violation(
                 rule_id=v["rule_id"],
                 severity=v["severity"],
                 message=v["message"]
             ) for v in violations_raw
         ]
+        
+        all_violations = c.violations + new_violations
+        
+        # Deduplicate violations based on message
+        unique_violations = []
+        seen = set()
+        for v in all_violations:
+            if v.message not in seen:
+                unique_violations.append(v)
+                seen.add(v.message)
 
         # 5. Risk skoru was already run in extract_clauses locally! We just re-use it or re-run.
         # 6. Clause nesnesini oluştur
@@ -61,7 +71,7 @@ async def analyze_contract(contract_text: str, provider: str = "groq") -> Contra
             risk_score=c.risk_score,
             risk_level=c.risk_level,
             rewrite_suggestion=c.rewrite_suggestion,
-            violations=violations
+            violations=unique_violations
         )
         processed_clauses.append(clause)
 

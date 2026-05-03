@@ -174,6 +174,10 @@ def extract_text_from_file(filename: str, content: bytes) -> str:
     if filename.lower().endswith(".pdf"):
         reader = PdfReader(io.BytesIO(content))
         return "\n".join([page.extract_text() or "" for page in reader.pages])
+    elif filename.lower().endswith(".docx"):
+        import docx
+        doc = docx.Document(io.BytesIO(content))
+        return "\n".join([para.text for para in doc.paragraphs])
     return content.decode("utf-8", errors="replace")
 
 class ContractUploadResponse(BaseModel):

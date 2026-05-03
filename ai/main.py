@@ -135,7 +135,7 @@ async def analyze(request: ContractRequest):
                 id=clause.clause_id,
                 contract_id=request.id,
                 order_index=i + 1,
-                label=None,
+                label=clause.clause_type or "other",
                 text=clause.text,
                 overall_status=status,
                 ml_risk_score=final_risk_score,
